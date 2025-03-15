@@ -1,0 +1,9 @@
+[build]
+target = "wasm32-unknown-unknown"
+
+[target.wasm32-unknown-unknown]
+rustflags = [
+    "-C", "link-arg=--no-entry",
+    "-C", "link-arg=--export-table",
+    "-C", "link-arg=--import-memory",
+] 

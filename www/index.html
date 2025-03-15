@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>WebGL2 Canvas Library</title>
+    <style>
+      body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        margin: 0;
+        padding: 20px;
+        background: #f5f5f5;
+        color: #333;
+      }
+      
+      h1, h2 {
+        color: #1a1a1a;
+      }
+      
+      .demo-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      
+      .canvas-container {
+        margin: 20px 0;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        overflow: hidden;
+        position: relative;
+      }
+      
+      .controls {
+        margin: 20px 0;
+        padding: 15px;
+        background: #f0f0f0;
+        border-radius: 4px;
+      }
+      
+      .control-group {
+        margin-bottom: 15px;
+      }
+      
+      label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 500;
+      }
+      
+      input[type="range"] {
+        width: 100%;
+        max-width: 400px;
+      }
+      
+      .api-example {
+        margin-top: 40px;
+        padding-top: 20px;
+        border-top: 1px solid #ddd;
+      }
+      
+      code {
+        background: #f0f0f0;
+        padding: 2px 5px;
+        border-radius: 3px;
+        font-family: 'Courier New', Courier, monospace;
+      }
+      
+      .loading {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+      }
+      
+      .spinner {
+        border: 5px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        border-top: 5px solid white;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+        margin-bottom: 15px;
+      }
+      
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      
+      .status {
+        margin: 10px 0;
+        padding: 10px;
+        background: #e9f7ef;
+        border-left: 4px solid #2ecc71;
+        border-radius: 2px;
+      }
+      
+      .tab-container {
+        margin: 20px 0;
+      }
+      
+      .tab-buttons {
+        display: flex;
+        border-bottom: 1px solid #ddd;
+      }
+      
+      .tab-button {
+        padding: 10px 20px;
+        background: #f0f0f0;
+        border: none;
+        border-radius: 4px 4px 0 0;
+        margin-right: 5px;
+        cursor: pointer;
+      }
+      
+      .tab-button.active {
+        background: white;
+        border: 1px solid #ddd;
+        border-bottom: 1px solid white;
+        margin-bottom: -1px;
+      }
+      
+      .tab-content {
+        display: none;
+        padding: 20px;
+        border: 1px solid #ddd;
+        border-top: none;
+        background: white;
+      }
+      
+      .tab-content.active {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="demo-container">
+      <h1>WebGL2 Canvas Library</h1>
+      <p>GPU-accelerated 2D canvas rendering with WebAssembly and WebGL2</p>
+      
+      <div class="status" id="webgl-status">WebGL2 status: Loading...</div>
+      
+      <div class="tab-container">
+        <div class="tab-buttons">
+          <button class="tab-button active" data-tab="web-component">Web Component</button>
+          <button class="tab-button" data-tab="js-api">JavaScript API</button>
+        </div>
+        
+        <div class="tab-content active" id="web-component">
+          <h2>Web Component API</h2>
+          <p>Simple declarative API using web components</p>
+          
+          <div class="canvas-container">
+            <canvas-gpu width="800" height="400" count="10"></canvas-gpu>
+          </div>
+          
+          <div class="controls">
+            <div class="control-group">
+              <label>Polygon Count: <span id="circle-count-value">10</span></label>
+              <input type="range" id="circle-count" min="1" max="50" value="10">
+            </div>
+            
+            <div class="control-group">
+              <label>Animation:</label>
+              <button id="toggle-animation">Pause</button>
+            </div>
+            
+            <div class="control-group">
+              <label>Scale: <span id="scale-value">1.0</span></label>
+              <input type="range" id="scale" min="0.5" max="2" value="1.0" step="0.1">
+            </div>
+          </div>
+          
+          <h3>Example Code</h3>
+          <pre><code>&lt;canvas-gpu width="800" height="400" count="10"&gt;&lt;/canvas-gpu&gt;</code></pre>
+        </div>
+        
+        <div class="tab-content" id="js-api">
+          <h2>JavaScript API</h2>
+          <p>More flexible programmatic API for custom rendering</p>
+          
+          <div class="canvas-container">
+            <canvas id="js-canvas" width="800" height="400"></canvas>
+          </div>
+          
+          <div class="controls">
+            <div class="control-group">
+              <label>Polygon Count: <span id="js-count-value">10</span></label>
+              <input type="range" id="js-count" min="1" max="50" value="10">
+            </div>
+            
+            <div class="control-group">
+              <label>Animation:</label>
+              <button id="js-toggle-animation">Pause</button>
+            </div>
+          </div>
+          
+          <h3>Example Code</h3>
+          <pre><code>// Initialize Canvas GPU
+const canvas = document.getElementById('js-canvas');
+const canvasGPU = new CanvasGPU();
+
+await canvasGPU.init(canvas);
+canvasGPU.drawPolygonRow(10);
+canvasGPU.start();</code></pre>
+        </div>
+      </div>
+      
+      <div class="api-example">
+        <h2>API Documentation</h2>
+        
+        <h3>Web Component</h3>
+        <ul>
+          <li><code>&lt;canvas-gpu&gt;</code> - Main component</li>
+          <li>Attributes:
+            <ul>
+              <li><code>width</code> - Canvas width</li>
+              <li><code>height</code> - Canvas height</li>
+              <li><code>count</code> - Number of polygons</li>
+              <li><code>animate</code> - Enable/disable animation ("true"/"false")</li>
+              <li><code>scale</code> - Scale factor</li>
+              <li><code>spacing</code> - Spacing between polygons</li>
+              <li><code>rotation</code> - Base rotation in radians</li>
+            </ul>
+          </li>
+        </ul>
+        
+        <h3>JavaScript API</h3>
+        <ul>
+          <li><code>new CanvasGPU()</code> - Create a new instance</li>
+          <li><code>init(canvas, options)</code> - Initialize with canvas</li>
+          <li><code>drawPolygonRow(count, options)</code> - Draw polygons</li>
+          <li><code>clear(r, g, b, a)</code> - Clear the canvas</li>
+          <li><code>resize(width, height)</code> - Resize the canvas</li>
+          <li><code>start()</code> - Start animation loop</li>
+          <li><code>stop()</code> - Stop animation loop</li>
+          <li><code>dispose()</code> - Release resources</li>
+        </ul>
+      </div>
+    </div>
+    
+    <script>
+      // Tab switching logic
+      document.querySelectorAll('.tab-button').forEach(button => {
+        button.addEventListener('click', () => {
+          // Deactivate all buttons and tabs
+          document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+          document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+          
+          // Activate clicked button and corresponding tab
+          button.classList.add('active');
+          document.getElementById(button.dataset.tab).classList.add('active');
+        });
+      });
+      
+      // Web Component controls
+      document.addEventListener('DOMContentLoaded', () => {
+        // Animation toggle
+        const toggleBtn = document.getElementById('toggle-animation');
+        if (toggleBtn) {
+          toggleBtn.addEventListener('click', () => {
+            const component = document.querySelector('canvas-gpu');
+            const isAnimated = component.getAttribute('animate') !== 'false';
+            
+            component.setAttribute('animate', isAnimated ? 'false' : 'true');
+            toggleBtn.textContent = isAnimated ? 'Resume' : 'Pause';
+          });
+        }
+        
+        // Scale control
+        const scaleSlider = document.getElementById('scale');
+        if (scaleSlider) {
+          scaleSlider.addEventListener('input', (e) => {
+            const value = e.target.value;
+            document.getElementById('scale-value').textContent = value;
+            document.querySelector('canvas-gpu').setAttribute('scale', value);
+          });
+        }
+      });
+    </script>
+    
+    <script src="./index.js" type="module"></script>
+    
+    <script type="module">
+      // JavaScript API example
+      import { CanvasGPU, wasmModule } from "../src/canvas-gpu.js";
+      
+      document.addEventListener('DOMContentLoaded', async () => {
+        const canvas = document.getElementById('js-canvas');
+        if (!canvas) return;
+        
+        // Create Canvas GPU instance
+        const canvasGPU = new CanvasGPU();
+        
+        try {
+          // Initialize
+          await canvasGPU.init(canvas);
+          
+          // Draw polygons
+          canvasGPU.drawPolygonRow(10);
+          
+          // Start animation
+          canvasGPU.start();
+          
+          // Set up controls
+          const countSlider = document.getElementById('js-count');
+          if (countSlider) {
+            countSlider.addEventListener('input', (e) => {
+              const value = parseInt(e.target.value, 10);
+              document.getElementById('js-count-value').textContent = value;
+              canvasGPU.drawPolygonRow(value);
+            });
+          }
+          
+          const toggleBtn = document.getElementById('js-toggle-animation');
+          if (toggleBtn) {
+            toggleBtn.addEventListener('click', () => {
+              if (canvasGPU.animationFrameId) {
+                canvasGPU.stop();
+                toggleBtn.textContent = 'Resume';
+              } else {
+                canvasGPU.start();
+                toggleBtn.textContent = 'Pause';
+              }
+            });
+          }
+        } catch (error) {
+          console.error('Error initializing CanvasGPU:', error);
+          const errorMsg = document.createElement('div');
+          errorMsg.textContent = `Error: ${error.message}`;
+          errorMsg.style.color = 'red';
+          errorMsg.style.padding = '20px';
+          canvas.parentNode.appendChild(errorMsg);
+        }
+      });
+    </script>
+  </body>
+</html> 

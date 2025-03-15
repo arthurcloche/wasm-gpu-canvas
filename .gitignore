@@ -1,0 +1,22 @@
+# Rust build artifacts
+target/
+**/*.rs.bk
+Cargo.lock
+
+# Node.js dependencies
+node_modules/
+npm-debug.log
+
+# WASM build artifacts
+pkg/
+dist/
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Editor directories and files
+.idea/
+.vscode/
+*.swp
+*.swo 
