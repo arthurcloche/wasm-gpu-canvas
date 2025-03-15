@@ -124,6 +124,104 @@ class CanvasGPU {
   }
 
   /**
+   * Draw a particle system
+   * @param {number} count - Number of particles
+   * @param {Object} options - Particle system options
+   * @returns {CanvasGPU} - For chaining
+   */
+  drawParticles(count, options = {}) {
+    if (!this.isReady || !this.renderer) {
+      console.warn("CanvasGPU not initialized yet");
+      return this;
+    }
+
+    // Create particle options
+    const particleOptions = {
+      particle_size: options.particleSize || 3.0,
+      max_speed: options.maxSpeed || 2.0,
+    };
+
+    this.elementCount = count;
+    this.renderer.draw_particles(count, particleOptions);
+
+    return this;
+  }
+
+  /**
+   * Draw a flow field
+   * @param {number} resolution - Grid resolution for flow field
+   * @param {Object} options - Flow field options
+   * @returns {CanvasGPU} - For chaining
+   */
+  drawFlowField(resolution, options = {}) {
+    if (!this.isReady || !this.renderer) {
+      console.warn("CanvasGPU not initialized yet");
+      return this;
+    }
+
+    // Create flow field options
+    const flowOptions = {
+      flow_scale: options.flowScale || 0.2,
+      flow_speed: options.flowSpeed || 0.5,
+    };
+
+    this.elementCount = resolution;
+    this.renderer.draw_flow_field(resolution, flowOptions);
+
+    return this;
+  }
+
+  /**
+   * Draw a cellular automata
+   * @param {number} gridSize - Size of the cellular grid
+   * @param {Object} options - Cellular automata options
+   * @returns {CanvasGPU} - For chaining
+   */
+  drawCellularAutomata(gridSize, options = {}) {
+    if (!this.isReady || !this.renderer) {
+      console.warn("CanvasGPU not initialized yet");
+      return this;
+    }
+
+    // Create cellular automata options
+    const caOptions = {
+      sim_speed: options.simSpeed || 8.0,
+    };
+
+    this.elementCount = gridSize;
+    this.renderer.draw_cellular_automata(gridSize, caOptions);
+
+    return this;
+  }
+
+  /**
+   * Draw a fractal tree
+   * @param {number} maxDepth - Maximum recursion depth
+   * @param {Object} options - Fractal tree options
+   * @returns {CanvasGPU} - For chaining
+   */
+  drawFractalTree(maxDepth, options = {}) {
+    if (!this.isReady || !this.renderer) {
+      console.warn("CanvasGPU not initialized yet");
+      return this;
+    }
+
+    // Create fractal tree options
+    const treeOptions = {
+      branch_count: options.branchCount || 3,
+      wind_strength: options.windStrength || 0.15,
+    };
+
+    this.elementCount = Math.min(
+      100,
+      (2 ** maxDepth - 1) / (treeOptions.branch_count - 1)
+    );
+    this.renderer.draw_fractal_tree(maxDepth, treeOptions);
+
+    return this;
+  }
+
+  /**
    * Clear the canvas with a specified color
    * @param {number} r - Red (0-1)
    * @param {number} g - Green (0-1)

@@ -249,9 +249,79 @@ impl Canvas2D {
             return Err(JsValue::from_str("Canvas has been disposed"));
         }
         
-        // Use default options if options is null or undefined
-        // We're taking the options as JsValue instead of &RenderOptions
-        // This provides more flexibility with what JavaScript can pass in
+        // Parse options from JavaScript
+        let mut render_options = RenderOptions::new();
+        
+        // If options is provided, try to extract values
+        if !options.is_null() && !options.is_undefined() {
+            // Extract animation flag
+            if let Ok(animate) = Reflect::get(&options, &JsValue::from_str("animate")) {
+                if !animate.is_null() && !animate.is_undefined() {
+                    if let Some(value) = animate.as_bool() {
+                        render_options.animate = value;
+                    }
+                }
+            }
+            
+            // Extract center_x
+            if let Ok(center_x) = Reflect::get(&options, &JsValue::from_str("center_x")) {
+                if !center_x.is_null() && !center_x.is_undefined() {
+                    if let Some(value) = center_x.as_f64() {
+                        render_options.center_x = value as f32;
+                    }
+                }
+            }
+            
+            // Extract center_y
+            if let Ok(center_y) = Reflect::get(&options, &JsValue::from_str("center_y")) {
+                if !center_y.is_null() && !center_y.is_undefined() {
+                    if let Some(value) = center_y.as_f64() {
+                        render_options.center_y = value as f32;
+                    }
+                }
+            }
+            
+            // Extract scale
+            if let Ok(scale) = Reflect::get(&options, &JsValue::from_str("scale")) {
+                if !scale.is_null() && !scale.is_undefined() {
+                    if let Some(value) = scale.as_f64() {
+                        render_options.scale = value as f32;
+                    }
+                }
+            }
+            
+            // Extract spacing
+            if let Ok(spacing) = Reflect::get(&options, &JsValue::from_str("spacing")) {
+                if !spacing.is_null() && !spacing.is_undefined() {
+                    if let Some(value) = spacing.as_f64() {
+                        render_options.spacing = value as f32;
+                    }
+                }
+            }
+            
+            // Extract rotation
+            if let Ok(rotation) = Reflect::get(&options, &JsValue::from_str("rotation")) {
+                if !rotation.is_null() && !rotation.is_undefined() {
+                    if let Some(value) = rotation.as_f64() {
+                        render_options.rotation = value as f32;
+                    }
+                }
+            }
+            
+            // Extract shape_type
+            if let Ok(shape_type) = Reflect::get(&options, &JsValue::from_str("shape_type")) {
+                if !shape_type.is_null() && !shape_type.is_undefined() {
+                    if let Some(value) = shape_type.as_f64() {
+                        let type_val = value as u32;
+                        render_options.shape_type = match type_val {
+                            1 => ShapeType::Star,
+                            2 => ShapeType::Spiral,
+                            _ => ShapeType::Regular,
+                        };
+                    }
+                }
+            }
+        }
         
         // Setup the buffers for the polygons
         setup_polygon_buffers(&self.gl, &self.program, count as usize)?;
@@ -379,6 +449,155 @@ impl Canvas2D {
         
         self.is_disposed = true;
         console_log!("Canvas2D GPU Renderer disposed");
+        
+        Ok(())
+    }
+
+    // Add new methods for creative examples
+
+    // Draw a particle system
+    #[wasm_bindgen]
+    pub fn draw_particles(&mut self, count: u32, options: JsValue) -> Result<(), JsValue> {
+        if self.is_disposed {
+            return Err(JsValue::from_str("Canvas has been disposed"));
+        }
+        
+        // Extract particle options from JsValue
+        let mut particle_size: f32 = 3.0;
+        let mut max_speed: f32 = 2.0;
+        
+        if !options.is_null() && !options.is_undefined() {
+            if let Ok(size) = Reflect::get(&options, &JsValue::from_str("particle_size")) {
+                if !size.is_null() && !size.is_undefined() {
+                    if let Some(value) = size.as_f64() {
+                        particle_size = value as f32;
+                    }
+                }
+            }
+            
+            if let Ok(speed) = Reflect::get(&options, &JsValue::from_str("max_speed")) {
+                if !speed.is_null() && !speed.is_undefined() {
+                    if let Some(value) = speed.as_f64() {
+                        max_speed = value as f32;
+                    }
+                }
+            }
+        }
+        
+        // Call internal particle system setup (for future implementation)
+        console_log!("Particle system with {} particles, size={}, speed={}", count, particle_size, max_speed);
+        
+        // Just use polygon buffers for now, will be replaced with proper particle implementation
+        setup_polygon_buffers(&self.gl, &self.program, count as usize)?;
+        self.element_count = count;
+        
+        Ok(())
+    }
+
+    // Draw a flow field
+    #[wasm_bindgen]
+    pub fn draw_flow_field(&mut self, resolution: u32, options: JsValue) -> Result<(), JsValue> {
+        if self.is_disposed {
+            return Err(JsValue::from_str("Canvas has been disposed"));
+        }
+        
+        // Extract flow field options from JsValue
+        let mut flow_scale: f32 = 0.2;
+        let mut flow_speed: f32 = 0.5;
+        
+        if !options.is_null() && !options.is_undefined() {
+            if let Ok(scale) = Reflect::get(&options, &JsValue::from_str("flow_scale")) {
+                if !scale.is_null() && !scale.is_undefined() {
+                    if let Some(value) = scale.as_f64() {
+                        flow_scale = value as f32;
+                    }
+                }
+            }
+            
+            if let Ok(speed) = Reflect::get(&options, &JsValue::from_str("flow_speed")) {
+                if !speed.is_null() && !speed.is_undefined() {
+                    if let Some(value) = speed.as_f64() {
+                        flow_speed = value as f32;
+                    }
+                }
+            }
+        }
+        
+        console_log!("Flow field with resolution {}, scale={}, speed={}", resolution, flow_scale, flow_speed);
+        
+        // For now, just use polygon buffers until we implement proper flow field
+        setup_polygon_buffers(&self.gl, &self.program, resolution as usize)?;
+        self.element_count = resolution;
+        
+        Ok(())
+    }
+
+    // Draw a cellular automata grid
+    #[wasm_bindgen]
+    pub fn draw_cellular_automata(&mut self, grid_size: u32, options: JsValue) -> Result<(), JsValue> {
+        if self.is_disposed {
+            return Err(JsValue::from_str("Canvas has been disposed"));
+        }
+        
+        // Extract cellular automata options from JsValue
+        let mut sim_speed: f32 = 8.0;
+        
+        if !options.is_null() && !options.is_undefined() {
+            if let Ok(speed) = Reflect::get(&options, &JsValue::from_str("sim_speed")) {
+                if !speed.is_null() && !speed.is_undefined() {
+                    if let Some(value) = speed.as_f64() {
+                        sim_speed = value as f32;
+                    }
+                }
+            }
+        }
+        
+        console_log!("Cellular automata with grid size {}, sim_speed={}", grid_size, sim_speed);
+        
+        // For now, just use polygon buffers until we implement proper cellular automata
+        setup_polygon_buffers(&self.gl, &self.program, (grid_size/16) as usize)?;
+        self.element_count = grid_size / 16;
+        
+        Ok(())
+    }
+
+    // Draw a fractal tree
+    #[wasm_bindgen]
+    pub fn draw_fractal_tree(&mut self, max_depth: u32, options: JsValue) -> Result<(), JsValue> {
+        if self.is_disposed {
+            return Err(JsValue::from_str("Canvas has been disposed"));
+        }
+        
+        // Extract fractal tree options from JsValue
+        let mut branch_count: u32 = 3;
+        let mut wind_strength: f32 = 0.15;
+        
+        if !options.is_null() && !options.is_undefined() {
+            if let Ok(branches) = Reflect::get(&options, &JsValue::from_str("branch_count")) {
+                if !branches.is_null() && !branches.is_undefined() {
+                    if let Some(value) = branches.as_f64() {
+                        branch_count = value as u32;
+                    }
+                }
+            }
+            
+            if let Ok(wind) = Reflect::get(&options, &JsValue::from_str("wind_strength")) {
+                if !wind.is_null() && !wind.is_undefined() {
+                    if let Some(value) = wind.as_f64() {
+                        wind_strength = value as f32;
+                    }
+                }
+            }
+        }
+        
+        console_log!("Fractal tree with depth {}, branches={}, wind={}", max_depth, branch_count, wind_strength);
+        
+        // For now, just use polygon buffers until we implement proper fractal tree
+        let element_count = (2u32.pow(max_depth) - 1) / (branch_count - 1);
+        let element_count = element_count.min(100); // Reasonable limit
+        
+        setup_polygon_buffers(&self.gl, &self.program, element_count as usize)?;
+        self.element_count = element_count;
         
         Ok(())
     }
