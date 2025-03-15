@@ -1,4 +1,4 @@
-import { CanvasGPU, wasmModule } from "../../src/canvas-gpu.js";
+import { CanvasGPU, wasmModule } from "/src/canvas-gpu.js";
 import FpsCounter from "./fps-counter.js";
 
 /**

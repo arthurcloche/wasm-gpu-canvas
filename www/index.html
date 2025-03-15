@@ -142,6 +142,54 @@
       .tab-content.active {
         display: block;
       }
+      
+      .examples-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 20px;
+        margin-top: 20px;
+      }
+      
+      .example-card {
+        background: #fff;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        transition: transform 0.2s, box-shadow 0.2s;
+      }
+      
+      .example-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+      }
+      
+      .example-thumbnail {
+        width: 100%;
+        height: 180px;
+        background-color: #333;
+        background-position: center;
+        background-size: cover;
+      }
+      
+      .example-info {
+        padding: 15px;
+      }
+      
+      .example-title {
+        margin: 0 0 10px 0;
+        font-size: 18px;
+      }
+      
+      .example-description {
+        margin: 0;
+        font-size: 14px;
+        color: #666;
+      }
+      
+      a {
+        text-decoration: none;
+        color: inherit;
+      }
     </style>
   </head>
   <body>
@@ -155,6 +203,7 @@
         <div class="tab-buttons">
           <button class="tab-button active" data-tab="web-component">Web Component</button>
           <button class="tab-button" data-tab="js-api">JavaScript API</button>
+          <button class="tab-button" data-tab="creative-examples">Creative Examples</button>
         </div>
         
         <div class="tab-content active" id="web-component">
@@ -215,6 +264,60 @@ await canvasGPU.init(canvas);
 canvasGPU.drawPolygonRow(10);
 canvasGPU.start();</code></pre>
         </div>
+        
+        <div class="tab-content" id="creative-examples">
+          <h2>Creative Coding Examples</h2>
+          <p>Explore these GPU-accelerated creative coding examples, inspired by the Processing and p5.js ecosystems.</p>
+          
+          <div class="examples-grid">
+            <a href="/examples/01-particles.html" class="example-card">
+              <div class="example-thumbnail" style="background-color: #0a0a2a;"></div>
+              <div class="example-info">
+                <h3 class="example-title">Particle System</h3>
+                <p class="example-description">Interactive particle system with thousands of particles and physics simulation</p>
+              </div>
+            </a>
+            
+            <a href="/examples/02-voronoi.html" class="example-card">
+              <div class="example-thumbnail" style="background-color: #2a0a1a;"></div>
+              <div class="example-info">
+                <h3 class="example-title">Voronoi Patterns</h3>
+                <p class="example-description">Dynamic Voronoi diagram with moving cells and interactive patterns</p>
+              </div>
+            </a>
+            
+            <a href="/examples/03-cellular-automata.html" class="example-card">
+              <div class="example-thumbnail" style="background-color: #0a2a0a;"></div>
+              <div class="example-info">
+                <h3 class="example-title">Cellular Automata</h3>
+                <p class="example-description">Conway's Game of Life implemented with GPU acceleration</p>
+              </div>
+            </a>
+            
+            <a href="/examples/04-fractal-tree.html" class="example-card">
+              <div class="example-thumbnail" style="background-color: #2a2a0a;"></div>
+              <div class="example-info">
+                <h3 class="example-title">Fractal Tree</h3>
+                <p class="example-description">Recursive branching tree that sways in a virtual wind</p>
+              </div>
+            </a>
+            
+            <a href="/examples/05-flow-field.html" class="example-card">
+              <div class="example-thumbnail" style="background-color: #0a2a2a;"></div>
+              <div class="example-info">
+                <h3 class="example-title">Flow Field</h3>
+                <p class="example-description">Particles flowing through a dynamic vector field with emergent patterns</p>
+              </div>
+            </a>
+          </div>
+          
+          <h3 style="margin-top: 30px;">View All Examples</h3>
+          <p>
+            <a href="/examples/index.html" style="color: #0066cc; text-decoration: underline;">
+              Go to Examples Gallery
+            </a>
+          </p>
+        </div>
       </div>
       
       <div class="api-example">
@@ -241,6 +344,10 @@ canvasGPU.start();</code></pre>
           <li><code>new CanvasGPU()</code> - Create a new instance</li>
           <li><code>init(canvas, options)</code> - Initialize with canvas</li>
           <li><code>drawPolygonRow(count, options)</code> - Draw polygons</li>
+          <li><code>drawParticles(count, options)</code> - Draw a particle system</li>
+          <li><code>drawFlowField(resolution, options)</code> - Draw a flow field</li>
+          <li><code>drawCellularAutomata(gridSize, options)</code> - Draw a cellular automata simulation</li>
+          <li><code>drawFractalTree(maxDepth, options)</code> - Draw a fractal tree</li>
           <li><code>clear(r, g, b, a)</code> - Clear the canvas</li>
           <li><code>resize(width, height)</code> - Resize the canvas</li>
           <li><code>start()</code> - Start animation loop</li>

@@ -47,15 +47,20 @@
       border-top: 1px solid #eee;
     }
     
-    .back-link {
-      display: inline-block;
-      margin-top: 20px;
-      color: #0066cc;
-      text-decoration: none;
-    }
-    
     .back-link:hover {
       text-decoration: underline;
+    }
+    
+    .navigation-links {
+      margin-top: 20px;
+      display: flex;
+      gap: 20px;
+    }
+    
+    .back-link {
+      display: inline-block;
+      color: #0066cc;
+      text-decoration: none;
     }
   </style>
 </head>
@@ -75,11 +80,14 @@
       </p>
     </div>
     
-    <a href="index.html" class="back-link">← Back to Examples</a>
+    <div class="navigation-links">
+      <a href="/examples/" class="back-link">← Back to Examples</a>
+      <a href="/" class="back-link">← Back to Main Page</a>
+    </div>
   </div>
   
   <script type="module">
-    import { CanvasGPU, wasmModule } from "../src/canvas-gpu.js";
+    import { CanvasGPU, wasmModule } from "/src/canvas-gpu.js";
     import FpsCounter from "./js/fps-counter.js";
     
     // Particle system parameters
