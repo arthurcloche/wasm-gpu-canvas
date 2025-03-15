@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cellular Automata - WebGL2 Canvas Example</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f5f5f5;
+      color: #333;
+      margin: 0;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    h1 {
+      margin: 0 0 20px 0;
+      color: #1a1a1a;
+    }
+    
+    .canvas-container {
+      position: relative;
+      margin: 20px 0;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    
+    canvas {
+      display: block;
+      width: 100%;
+      background: #000;
+    }
+    
+    .description {
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid #eee;
+    }
+    
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 15px 0;
+    }
+    
+    button {
+      padding: 8px 15px;
+      background: #0066cc;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    
+    button:hover {
+      background: #0052a3;
+    }
+    
+    .back-link {
+      display: inline-block;
+      margin-top: 20px;
+      color: #0066cc;
+      text-decoration: none;
+    }
+    
+    .back-link:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Cellular Automata</h1>
+    
+    <div class="controls">
+      <button id="reset">Reset Random</button>
+      <button id="clear">Clear</button>
+      <button id="toggle-pause">Pause</button>
+    </div>
+    
+    <div class="canvas-container">
+      <canvas id="canvas" width="800" height="500"></canvas>
+    </div>
+    
+    <div class="description">
+      <p>
+        A GPU-accelerated implementation of Conway's Game of Life cellular automata.
+        This example uses two texture buffers to efficiently simulate the evolution of the cellular grid.
+        Click on the canvas to draw living cells. Use the controls to reset or clear the grid.
+      </p>
+    </div>
+    
+    <a href="index.html" class="back-link">← Back to Examples</a>
+  </div>
+  
+  <script type="module">
+    import { CanvasGPU, wasmModule } from "../src/canvas-gpu.js";
+    import FpsCounter from "./js/fps-counter.js";
+    
+    // Simulation parameters
+    const GRID_SIZE = 256; // Size of the grid
+    const SIM_SPEED = 8; // How many frames between simulation steps
+    
+    async function init() {
+      const canvas = document.getElementById('canvas');
+      const gl = canvas.getContext('webgl2');
+      
+      if (!gl) {
+        console.error('WebGL2 not supported');
+        document.querySelector('.description').innerHTML = 
+          '<p class="error">Your browser does not support WebGL2, which is required for this example.</p>';
+        return;
+      }
+      
+      // Check for required extensions
+      const floatTextureExt = gl.getExtension('EXT_color_buffer_float');
+      if (!floatTextureExt) {
+        console.error('EXT_color_buffer_float not supported');
+        document.querySelector('.description').innerHTML = 
+          '<p class="error">Your browser does not support float textures, which are required for this example.</p>';
+        return;
+      }
+      
+      // Setup FPS counter
+      const fpsCounter = new FpsCounter();
+      const fpsElement = fpsCounter.attach(document.querySelector('.canvas-container'));
+      
+      // Initialize state
+      let isPaused = false;
+      let frameCount = 0;
+      
+      // Resize handler
+      function handleResize() {
+        const container = document.querySelector('.canvas-container');
+        const containerWidth = container.clientWidth;
+        const containerHeight = Math.round(containerWidth * (500 / 800)); // Maintain aspect ratio
+        
+        canvas.width = containerWidth;
+        canvas.height = containerHeight;
+        gl.viewport(0, 0, canvas.width, canvas.height);
+      }
+      
+      window.addEventListener('resize', handleResize);
+      handleResize(); // Initial sizing
+      
+      // Create vertex shader for the simulation step
+      const simulationVertexShaderSource = `#version 300 es
+        in vec4 aPosition;
+        in vec2 aTexCoord;
+        
+        out vec2 vTexCoord;
+        
+        void main() {
+          gl_Position = aPosition;
+          vTexCoord = aTexCoord;
+        }
+      `;
+      
+      // Create fragment shader for the simulation step
+      const simulationFragmentShaderSource = `#version 300 es
+        precision highp float;
+        
+        in vec2 vTexCoord;
+        out vec4 outColor;
+        
+        uniform sampler2D uStateTexture;
+        uniform vec2 uResolution;
+        
+        // Conway's Game of Life rules:
+        // 1. Any live cell with fewer than two live neighbors dies (underpopulation)
+        // 2. Any live cell with two or three live neighbors lives
+        // 3. Any live cell with more than three live neighbors dies (overpopulation)
+        // 4. Any dead cell with exactly three live neighbors becomes a live cell (reproduction)
+        void main() {
+          vec2 texelSize = 1.0 / uResolution;
+          vec2 uv = vTexCoord;
+          
+          // Get the state of the current cell (1.0 = alive, 0.0 = dead)
+          float currentState = texture(uStateTexture, uv).r;
+          
+          // Count live neighbors
+          float liveNeighbors = 0.0;
+          
+          // Check 3x3 neighborhood
+          for (int y = -1; y <= 1; y++) {
+            for (int x = -1; x <= 1; x++) {
+              if (x == 0 && y == 0) continue; // Skip the center cell
+              
+              vec2 neighborUV = uv + vec2(float(x), float(y)) * texelSize;
+              liveNeighbors += texture(uStateTexture, neighborUV).r;
+            }
+          }
+          
+          // Apply Conway's rules
+          float newState = 0.0;
+          
+          if (currentState > 0.5) {
+            // Cell is currently alive
+            if (liveNeighbors < 2.0 || liveNeighbors > 3.0) {
+              newState = 0.0; // Cell dies
+            } else {
+              newState = 1.0; // Cell stays alive
+            }
+          } else {
+            // Cell is currently dead
+            if (liveNeighbors == 3.0) {
+              newState = 1.0; // Cell becomes alive
+            } else {
+              newState = 0.0; // Cell stays dead
+            }
+          }
+          
+          // Add a slight color variation based on how long the cell has been alive
+          vec3 cellColor = vec3(1.0, 0.9, 0.7); // Base color for live cells
+          
+          if (newState > 0.5) {
+            // If the cell is alive, blend with the previous state for a subtle aging effect
+            float age = mix(0.5, 1.0, currentState);
+            outColor = vec4(cellColor * age, 1.0);
+          } else {
+            outColor = vec4(0.0, 0.0, 0.0, 1.0); // Dead cell
+          }
+        }
+      `;
+      
+      // Create vertex shader for the rendering step
+      const renderVertexShaderSource = `#version 300 es
+        in vec4 aPosition;
+        in vec2 aTexCoord;
+        
+        out vec2 vTexCoord;
+        
+        void main() {
+          gl_Position = aPosition;
+          vTexCoord = aTexCoord;
+        }
+      `;
+      
+      // Create fragment shader for the rendering step
+      const renderFragmentShaderSource = `#version 300 es
+        precision highp float;
+        
+        in vec2 vTexCoord;
+        out vec4 outColor;
+        
+        uniform sampler2D uStateTexture;
+        uniform vec2 uResolution;
+        uniform float uTime;
+        
+        void main() {
+          vec2 uv = vTexCoord;
+          
+          // Get cell state
+          vec4 cellState = texture(uStateTexture, uv);
+          float state = cellState.r;
+          
+          // Grid lines
+          vec2 gridUV = fract(uv * uResolution / 8.0);
+          float gridLine = max(
+            step(0.95, gridUV.x) * step(gridUV.x, 1.0),
+            step(0.95, gridUV.y) * step(gridUV.y, 1.0)
+          ) * 0.15;
+          
+          // Color for live cells (warm glow)
+          vec3 aliveColor = vec3(1.0, 0.8, 0.4) * (0.8 + 0.2 * sin(uTime * 1.5));
+          
+          // Color for dead cells (cool dark)
+          vec3 deadColor = vec3(0.05, 0.05, 0.1);
+          
+          // Final color
+          vec3 color = mix(deadColor, aliveColor, state);
+          
+          // Subtle glow effect
+          float glow = state * 0.2;
+          vec2 pixelSize = 1.0 / uResolution;
+          
+          for (int y = -1; y <= 1; y++) {
+            for (int x = -1; x <= 1; x++) {
+              if (x == 0 && y == 0) continue;
+              vec2 neighborUV = uv + vec2(float(x), float(y)) * pixelSize * 2.0;
+              glow += texture(uStateTexture, neighborUV).r * 0.05;
+            }
+          }
+          
+          color += vec3(1.0, 0.8, 0.4) * glow;
+          
+          // Add grid lines
+          color = mix(color, vec3(0.2, 0.2, 0.25), gridLine);
+          
+          outColor = vec4(color, 1.0);
+        }
+      `;
+      
+      // Helper function to create and compile a shader
+      function createShader(gl, type, source) {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+          console.error('Shader compile error:', gl.getShaderInfoLog(shader));
+          gl.deleteShader(shader);
+          return null;
+        }
+        
+        return shader;
+      }
+      
+      // Helper function to create a program from shaders
+      function createProgram(gl, vertexShader, fragmentShader) {
+        const program = gl.createProgram();
+        gl.attachShader(program, vertexShader);
+        gl.attachShader(program, fragmentShader);
+        gl.linkProgram(program);
+        
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+          console.error('Program link error:', gl.getProgramInfoLog(program));
+          return null;
+        }
+        
+        return program;
+      }
+      
+      // Create simulation program
+      const simulationVertexShader = createShader(gl, gl.VERTEX_SHADER, simulationVertexShaderSource);
+      const simulationFragmentShader = createShader(gl, gl.FRAGMENT_SHADER, simulationFragmentShaderSource);
+      const simulationProgram = createProgram(gl, simulationVertexShader, simulationFragmentShader);
+      
+      // Create render program
+      const renderVertexShader = createShader(gl, gl.VERTEX_SHADER, renderVertexShaderSource);
+      const renderFragmentShader = createShader(gl, gl.FRAGMENT_SHADER, renderFragmentShaderSource);
+      const renderProgram = createProgram(gl, renderVertexShader, renderFragmentShader);
+      
+      // Create a fullscreen quad (2 triangles)
+      const positionBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+        // Triangle 1 (top-right)
+        1.0, 1.0,
+        -1.0, 1.0,
+        -1.0, -1.0,
+        // Triangle 2 (bottom-right)
+        1.0, 1.0,
+        -1.0, -1.0,
+        1.0, -1.0
+      ]), gl.STATIC_DRAW);
+      
+      // Create texture coordinates
+      const texCoordBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+        // Triangle 1
+        1.0, 1.0,
+        0.0, 1.0,
+        0.0, 0.0,
+        // Triangle 2
+        1.0, 1.0,
+        0.0, 0.0,
+        1.0, 0.0
+      ]), gl.STATIC_DRAW);
+      
+      // Create VAOs for simulation and rendering
+      const simulationVAO = gl.createVertexArray();
+      gl.bindVertexArray(simulationVAO);
+      
+      // Position attribute for simulation
+      gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+      const simPositionAttributeLocation = gl.getAttribLocation(simulationProgram, 'aPosition');
+      gl.enableVertexAttribArray(simPositionAttributeLocation);
+      gl.vertexAttribPointer(simPositionAttributeLocation, 2, gl.FLOAT, false, 0, 0);
+      
+      // Texture coordinate attribute for simulation
+      gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
+      const simTexCoordAttributeLocation = gl.getAttribLocation(simulationProgram, 'aTexCoord');
+      gl.enableVertexAttribArray(simTexCoordAttributeLocation);
+      gl.vertexAttribPointer(simTexCoordAttributeLocation, 2, gl.FLOAT, false, 0, 0);
+      
+      // Create VAO for rendering
+      const renderVAO = gl.createVertexArray();
+      gl.bindVertexArray(renderVAO);
+      
+      // Position attribute for rendering
+      gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+      const renderPositionAttributeLocation = gl.getAttribLocation(renderProgram, 'aPosition');
+      gl.enableVertexAttribArray(renderPositionAttributeLocation);
+      gl.vertexAttribPointer(renderPositionAttributeLocation, 2, gl.FLOAT, false, 0, 0);
+      
+      // Texture coordinate attribute for rendering
+      gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
+      const renderTexCoordAttributeLocation = gl.getAttribLocation(renderProgram, 'aTexCoord');
+      gl.enableVertexAttribArray(renderTexCoordAttributeLocation);
+      gl.vertexAttribPointer(renderTexCoordAttributeLocation, 2, gl.FLOAT, false, 0, 0);
+      
+      // Get uniform locations
+      const simStateTextureLocation = gl.getUniformLocation(simulationProgram, 'uStateTexture');
+      const simResolutionLocation = gl.getUniformLocation(simulationProgram, 'uResolution');
+      
+      const renderStateTextureLocation = gl.getUniformLocation(renderProgram, 'uStateTexture');
+      const renderResolutionLocation = gl.getUniformLocation(renderProgram, 'uResolution');
+      const renderTimeLocation = gl.getUniformLocation(renderProgram, 'uTime');
+      
+      // Create state textures and framebuffers for ping-pong rendering
+      const stateTextures = [
+        createStateTexture(gl, GRID_SIZE, GRID_SIZE),
+        createStateTexture(gl, GRID_SIZE, GRID_SIZE)
+      ];
+      
+      const stateFramebuffers = [
+        gl.createFramebuffer(),
+        gl.createFramebuffer()
+      ];
+      
+      // Setup framebuffers
+      for (let i = 0; i < 2; i++) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, stateFramebuffers[i]);
+        gl.framebufferTexture2D(
+          gl.FRAMEBUFFER,
+          gl.COLOR_ATTACHMENT0,
+          gl.TEXTURE_2D,
+          stateTextures[i],
+          0
+        );
+        
+        const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+        if (status !== gl.FRAMEBUFFER_COMPLETE) {
+          console.error('Framebuffer not complete, status:', status);
+          return;
+        }
+      }
+      
+      // Initialize state texture with random cells
+      initializeRandomState();
+      
+      // Helper function to create a state texture
+      function createStateTexture(gl, width, height) {
+        const texture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texImage2D(
+          gl.TEXTURE_2D,
+          0,              // level
+          gl.RGBA32F,     // internalFormat
+          width,          // width
+          height,         // height
+          0,              // border
+          gl.RGBA,        // format
+          gl.FLOAT,       // type
+          null            // data
+        );
+        
+        // Set texture parameters
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        
+        return texture;
+      }
+      
+      // Helper function to initialize state with random cells
+      function initializeRandomState() {
+        // Fill with random data
+        const data = new Float32Array(GRID_SIZE * GRID_SIZE * 4);
+        for (let i = 0; i < GRID_SIZE * GRID_SIZE; i++) {
+          const r = Math.random() > 0.85 ? 1.0 : 0.0; // 15% chance of alive cell
+          data[i * 4 + 0] = r;
+          data[i * 4 + 1] = r;
+          data[i * 4 + 2] = r;
+          data[i * 4 + 3] = 1.0;
+        }
+        
+        gl.bindTexture(gl.TEXTURE_2D, stateTextures[0]);
+        gl.texImage2D(
+          gl.TEXTURE_2D,
+          0,              // level
+          gl.RGBA32F,     // internalFormat
+          GRID_SIZE,      // width
+          GRID_SIZE,      // height
+          0,              // border
+          gl.RGBA,        // format
+          gl.FLOAT,       // type
+          data            // data
+        );
+        
+        // Copy to the second texture too
+        gl.bindTexture(gl.TEXTURE_2D, stateTextures[1]);
+        gl.texImage2D(
+          gl.TEXTURE_2D,
+          0,              // level
+          gl.RGBA32F,     // internalFormat
+          GRID_SIZE,      // width
+          GRID_SIZE,      // height
+          0,              // border
+          gl.RGBA,        // format
+          gl.FLOAT,       // type
+          data            // data
+        );
+      }
+      
+      // Helper function to clear the state
+      function clearState() {
+        const data = new Float32Array(GRID_SIZE * GRID_SIZE * 4).fill(0);
+        
+        gl.bindTexture(gl.TEXTURE_2D, stateTextures[0]);
+        gl.texImage2D(
+          gl.TEXTURE_2D,
+          0,              // level
+          gl.RGBA32F,     // internalFormat
+          GRID_SIZE,      // width
+          GRID_SIZE,      // height
+          0,              // border
+          gl.RGBA,        // format
+          gl.FLOAT,       // type
+          data            // data
+        );
+        
+        // Copy to the second texture too
+        gl.bindTexture(gl.TEXTURE_2D, stateTextures[1]);
+        gl.texImage2D(
+          gl.TEXTURE_2D,
+          0,              // level
+          gl.RGBA32F,     // internalFormat
+          GRID_SIZE,      // width
+          GRID_SIZE,      // height
+          0,              // border
+          gl.RGBA,        // format
+          gl.FLOAT,       // type
+          data            // data
+        );
+      }
+      
+      // Button event listeners
+      document.getElementById('reset').addEventListener('click', initializeRandomState);
+      document.getElementById('clear').addEventListener('click', clearState);
+      
+      const pauseButton = document.getElementById('toggle-pause');
+      pauseButton.addEventListener('click', () => {
+        isPaused = !isPaused;
+        pauseButton.textContent = isPaused ? 'Resume' : 'Pause';
+      });
+      
+      // Mouse interaction
+      let isDrawing = false;
+      
+      canvas.addEventListener('mousedown', (e) => {
+        isDrawing = true;
+        drawAtMouse(e);
+      });
+      
+      canvas.addEventListener('mouseup', () => {
+        isDrawing = false;
+      });
+      
+      canvas.addEventListener('mousemove', (e) => {
+        if (isDrawing) {
+          drawAtMouse(e);
+        }
+      });
+      
+      canvas.addEventListener('mouseleave', () => {
+        isDrawing = false;
+      });
+      
+      // Draw at mouse position
+      function drawAtMouse(e) {
+        const rect = canvas.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / canvas.width;
+        const y = 1.0 - (e.clientY - rect.top) / canvas.height; // Flip Y
+        
+        // Convert to grid coordinates
+        const gridX = Math.floor(x * GRID_SIZE);
+        const gridY = Math.floor(y * GRID_SIZE);
+        
+        // Create a small pattern at the mouse position
+        const radius = 2;
+        const data = new Float32Array(4); // RGBA values
+        data[0] = 1.0; // R - alive state
+        data[1] = 1.0; // G
+        data[2] = 1.0; // B
+        data[3] = 1.0; // A
+        
+        for (let dy = -radius; dy <= radius; dy++) {
+          for (let dx = -radius; dx <= radius; dx++) {
+            const px = gridX + dx;
+            const py = gridY + dy;
+            
+            // Skip out of bounds and based on distance
+            if (px < 0 || px >= GRID_SIZE || py < 0 || py >= GRID_SIZE) continue;
+            
+            // Make a circular brush
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > radius) continue;
+            
+            // Get current ping state
+            const currentState = (frameCount % 2 === 0) ? 0 : 1;
+            
+            // Update the cell
+            gl.bindTexture(gl.TEXTURE_2D, stateTextures[currentState]);
+            gl.texSubImage2D(
+              gl.TEXTURE_2D,
+              0,           // level
+              px,          // xoffset
+              py,          // yoffset
+              1,           // width
+              1,           // height
+              gl.RGBA,     // format
+              gl.FLOAT,    // type
+              data         // data
+            );
+          }
+        }
+      }
+      
+      // Animation setup
+      let startTime = performance.now();
+      let lastFrameTime = startTime;
+      
+      // Animation loop
+      function animate() {
+        const now = performance.now();
+        const deltaTime = now - lastFrameTime;
+        const time = (now - startTime) / 1000.0; // Convert to seconds
+        lastFrameTime = now;
+        
+        // Update FPS counter
+        fpsCounter.update();
+        
+        // Determine which textures to use (ping-pong)
+        const sourceState = frameCount % 2;
+        const targetState = (frameCount + 1) % 2;
+        
+        if (!isPaused && frameCount % SIM_SPEED === 0) {
+          // Simulation step - write to the target framebuffer
+          gl.bindFramebuffer(gl.FRAMEBUFFER, stateFramebuffers[targetState]);
+          gl.viewport(0, 0, GRID_SIZE, GRID_SIZE);
+          
+          gl.useProgram(simulationProgram);
+          gl.bindVertexArray(simulationVAO);
+          
+          // Bind the source texture
+          gl.activeTexture(gl.TEXTURE0);
+          gl.bindTexture(gl.TEXTURE_2D, stateTextures[sourceState]);
+          gl.uniform1i(simStateTextureLocation, 0);
+          
+          // Set resolution uniform
+          gl.uniform2f(simResolutionLocation, GRID_SIZE, GRID_SIZE);
+          
+          // Draw the fullscreen quad to compute the next state
+          gl.drawArrays(gl.TRIANGLES, 0, 6);
+        }
+        
+        // Rendering step - draw to the canvas
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.viewport(0, 0, canvas.width, canvas.height);
+        
+        gl.useProgram(renderProgram);
+        gl.bindVertexArray(renderVAO);
+        
+        // After simulation, the target becomes the new source for rendering
+        const stateToRender = isPaused ? sourceState : targetState;
+        
+        // Bind the current state texture
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, stateTextures[stateToRender]);
+        gl.uniform1i(renderStateTextureLocation, 0);
+        
+        // Set uniforms for rendering
+        gl.uniform2f(renderResolutionLocation, GRID_SIZE, GRID_SIZE);
+        gl.uniform1f(renderTimeLocation, time);
+        
+        // Draw the fullscreen quad to render
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+        
+        // Increment frame counter for ping-pong
+        if (!isPaused) {
+          frameCount++;
+        }
+        
+        // Schedule next frame
+        requestAnimationFrame(animate);
+      }
+      
+      // Start the animation
+      animate();
+    }
+    
+    // Start when page is loaded
+    window.addEventListener('load', init);
+  </script>
+</body>
+</html> 

@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebGL2 Canvas - Creative Coding Examples</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f5f5f5;
+      color: #333;
+      margin: 0;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 20px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    h1 {
+      margin: 0 0 20px 0;
+      color: #1a1a1a;
+      text-align: center;
+    }
+    
+    .examples-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 20px;
+      margin-top: 20px;
+    }
+    
+    .example-card {
+      background: #fff;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .example-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+    
+    .example-thumbnail {
+      width: 100%;
+      height: 180px;
+      background-color: #333;
+      background-position: center;
+      background-size: cover;
+    }
+    
+    .example-info {
+      padding: 15px;
+    }
+    
+    .example-title {
+      margin: 0 0 10px 0;
+      font-size: 18px;
+    }
+    
+    .example-description {
+      margin: 0;
+      font-size: 14px;
+      color: #666;
+    }
+    
+    a {
+      text-decoration: none;
+      color: inherit;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>WebGL2 Canvas - Creative Coding Examples</h1>
+    <p>
+      This gallery showcases various 2D creative coding examples created with our WebGL2 Canvas library.
+      Each example demonstrates different techniques and possibilities using GPU-accelerated rendering.
+    </p>
+    
+    <div class="examples-grid">
+      <a href="01-particles.html" class="example-card">
+        <div class="example-thumbnail" style="background-color: #0a0a2a;"></div>
+        <div class="example-info">
+          <h3 class="example-title">Particle System</h3>
+          <p class="example-description">Simulation of particles with physics and interactive forces</p>
+        </div>
+      </a>
+      
+      <a href="02-voronoi.html" class="example-card">
+        <div class="example-thumbnail" style="background-color: #2a0a1a;"></div>
+        <div class="example-info">
+          <h3 class="example-title">Voronoi Patterns</h3>
+          <p class="example-description">Geometric partitioning based on distance fields</p>
+        </div>
+      </a>
+      
+      <a href="03-cellular-automata.html" class="example-card">
+        <div class="example-thumbnail" style="background-color: #0a2a0a;"></div>
+        <div class="example-info">
+          <h3 class="example-title">Cellular Automata</h3>
+          <p class="example-description">Conway's Game of Life with interactive cells</p>
+        </div>
+      </a>
+      
+      <a href="04-fractal-tree.html" class="example-card">
+        <div class="example-thumbnail" style="background-color: #2a2a0a;"></div>
+        <div class="example-info">
+          <h3 class="example-title">Fractal Tree</h3>
+          <p class="example-description">Recursive branching patterns that grow and evolve</p>
+        </div>
+      </a>
+      
+      <a href="05-flow-field.html" class="example-card">
+        <div class="example-thumbnail" style="background-color: #0a2a2a;"></div>
+        <div class="example-info">
+          <h3 class="example-title">Flow Field</h3>
+          <p class="example-description">Particles following vector fields with emergent patterns</p>
+        </div>
+      </a>
+      
+      <a href="06-interactive-polygons.html" class="example-card">
+        <div class="example-thumbnail" style="background-color: #2a0a2a;"></div>
+        <div class="example-info">
+          <h3 class="example-title">Interactive Polygons</h3>
+          <p class="example-description">Mouse-reactive shapes with geometric transformations</p>
+        </div>
+      </a>
+      
+      <a href="07-color-mixing.html" class="example-card">
+        <div class="example-thumbnail" style="background-color: #1a2a3a;"></div>
+        <div class="example-info">
+          <h3 class="example-title">Color Mixing</h3>
+          <p class="example-description">Gradient experiments and color theory visualization</p>
+        </div>
+      </a>
+      
+      <a href="08-audio-visualizer.html" class="example-card">
+        <div class="example-thumbnail" style="background-color: #3a1a2a;"></div>
+        <div class="example-info">
+          <h3 class="example-title">Audio Visualizer</h3>
+          <p class="example-description">Reactive visuals responding to audio input</p>
+        </div>
+      </a>
+      
+      <a href="09-spiral-generator.html" class="example-card">
+        <div class="example-thumbnail" style="background-color: #1a0a3a;"></div>
+        <div class="example-info">
+          <h3 class="example-title">Spiral Generator</h3>
+          <p class="example-description">Mathematical patterns with configurable parameters</p>
+        </div>
+      </a>
+      
+      <a href="10-pendulum-simulation.html" class="example-card">
+        <div class="example-thumbnail" style="background-color: #3a2a1a;"></div>
+        <div class="example-info">
+          <h3 class="example-title">Pendulum Simulation</h3>
+          <p class="example-description">Physics-based animation of connected pendulums</p>
+        </div>
+      </a>
+    </div>
+  </div>
+</body>
+</html> 

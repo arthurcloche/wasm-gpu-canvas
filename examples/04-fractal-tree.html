@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fractal Tree - WebGL2 Canvas Example</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f5f5f5;
+      color: #333;
+      margin: 0;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    h1 {
+      margin: 0 0 20px 0;
+      color: #1a1a1a;
+    }
+    
+    .canvas-container {
+      position: relative;
+      margin: 20px 0;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    
+    canvas {
+      display: block;
+      width: 100%;
+      background: #000;
+    }
+    
+    .description {
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid #eee;
+    }
+    
+    .back-link {
+      display: inline-block;
+      margin-top: 20px;
+      color: #0066cc;
+      text-decoration: none;
+    }
+    
+    .back-link:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Fractal Tree</h1>
+    
+    <div class="canvas-container">
+      <canvas id="canvas" width="800" height="500"></canvas>
+    </div>
+    
+    <div class="description">
+      <p>
+        A GPU-accelerated fractal tree that grows and evolves over time. 
+        This example demonstrates how to efficiently render many line segments with WebGL2.
+        The tree branches react to an invisible wind force and change color based on their depth.
+      </p>
+    </div>
+    
+    <a href="index.html" class="back-link">← Back to Examples</a>
+  </div>
+  
+  <script type="module">
+    import { CanvasGPU, wasmModule } from "../src/canvas-gpu.js";
+    import FpsCounter from "./js/fps-counter.js";
+    
+    // Tree parameters
+    const MAX_DEPTH = 11;            // Maximum recursion depth
+    const MIN_SIZE = 0.01;           // Minimum branch size
+    const BRANCH_SHRINK = 0.75;      // How much branches shrink at each level
+    const BRANCH_COUNT = 3;          // How many branches per node
+    const WIND_STRENGTH = 0.15;      // Strength of wind effect
+    
+    async function init() {
+      const canvas = document.getElementById('canvas');
+      const gl = canvas.getContext('webgl2');
+      
+      if (!gl) {
+        console.error('WebGL2 not supported');
+        document.querySelector('.description').innerHTML = 
+          '<p class="error">Your browser does not support WebGL2, which is required for this example.</p>';
+        return;
+      }
+      
+      // Setup FPS counter
+      const fpsCounter = new FpsCounter();
+      const fpsElement = fpsCounter.attach(document.querySelector('.canvas-container'));
+      
+      // Initialize tree structure
+      let treeVertices = [];
+      let treeColors = [];
+      
+      // Resize handler
+      function handleResize() {
+        const container = document.querySelector('.canvas-container');
+        const containerWidth = container.clientWidth;
+        const containerHeight = Math.round(containerWidth * (500 / 800)); // Maintain aspect ratio
+        
+        canvas.width = containerWidth;
+        canvas.height = containerHeight;
+        gl.viewport(0, 0, canvas.width, canvas.height);
+      }
+      
+      window.addEventListener('resize', handleResize);
+      handleResize(); // Initial sizing
+      
+      // Create vertex shader for line rendering
+      const vertexShaderSource = `#version 300 es
+        uniform mat4 uModelViewMatrix;
+        uniform mat4 uProjectionMatrix;
+        uniform float uTime;
+        uniform vec2 uResolution;
+        
+        in vec3 aPosition;
+        in vec3 aColor;
+        in float aDepth;
+        in float aIndex;
+        
+        out vec3 vColor;
+        out float vDepth;
+        
+        void main() {
+          // Apply wind effect based on position, time, and branch depth
+          float wind = sin(uTime * 0.5 + aPosition.y * 2.0 + aPosition.x) * ${WIND_STRENGTH} * (1.0 - aDepth / ${MAX_DEPTH}.0);
+          
+          // Apply less wind to the trunk and lower branches
+          wind *= max(0.0, min(1.0, (aPosition.y + 0.5) * 2.0));
+          
+          // Create modified position with wind
+          vec3 pos = aPosition;
+          pos.x += wind * (aDepth / ${MAX_DEPTH}.0) * 2.0;
+          
+          // Calculate aspect ratio
+          float aspectRatio = uResolution.x / uResolution.y;
+          
+          // Apply aspect ratio correction
+          mat4 correctionMatrix = mat4(1.0);
+          if (aspectRatio > 1.0) {
+            correctionMatrix[1][1] = aspectRatio;
+          } else {
+            correctionMatrix[0][0] = 1.0 / aspectRatio;
+          }
+          
+          // Calculate final position
+          gl_Position = correctionMatrix * uProjectionMatrix * uModelViewMatrix * vec4(pos, 1.0);
+          
+          // Pass color and depth to fragment shader
+          vColor = aColor;
+          vDepth = aDepth;
+        }
+      `;
+      
+      // Create fragment shader for line rendering
+      const fragmentShaderSource = `#version 300 es
+        precision highp float;
+        
+        in vec3 vColor;
+        in float vDepth;
+        
+        out vec4 outColor;
+        
+        void main() {
+          // Apply depth-based alpha (thinner at higher depths)
+          float alpha = mix(1.0, 0.5, vDepth / ${MAX_DEPTH}.0);
+          
+          // Output color with calculated alpha
+          outColor = vec4(vColor, alpha);
+        }
+      `;
+      
+      // Helper function to create and compile a shader
+      function createShader(gl, type, source) {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+          console.error('Shader compile error:', gl.getShaderInfoLog(shader));
+          gl.deleteShader(shader);
+          return null;
+        }
+        
+        return shader;
+      }
+      
+      // Helper function to create a program from shaders
+      function createProgram(gl, vertexShader, fragmentShader) {
+        const program = gl.createProgram();
+        gl.attachShader(program, vertexShader);
+        gl.attachShader(program, fragmentShader);
+        gl.linkProgram(program);
+        
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+          console.error('Program link error:', gl.getProgramInfoLog(program));
+          return null;
+        }
+        
+        return program;
+      }
+      
+      // Create shader program
+      const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
+      const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
+      const program = createProgram(gl, vertexShader, fragmentShader);
+      
+      if (!program) {
+        return;
+      }
+      
+      // Get attribute locations
+      const positionAttributeLocation = gl.getAttribLocation(program, 'aPosition');
+      const colorAttributeLocation = gl.getAttribLocation(program, 'aColor');
+      const depthAttributeLocation = gl.getAttribLocation(program, 'aDepth');
+      const indexAttributeLocation = gl.getAttribLocation(program, 'aIndex');
+      
+      // Get uniform locations
+      const modelViewMatrixLocation = gl.getUniformLocation(program, 'uModelViewMatrix');
+      const projectionMatrixLocation = gl.getUniformLocation(program, 'uProjectionMatrix');
+      const timeLocation = gl.getUniformLocation(program, 'uTime');
+      const resolutionLocation = gl.getUniformLocation(program, 'uResolution');
+      
+      // Create buffers
+      const positionBuffer = gl.createBuffer();
+      const colorBuffer = gl.createBuffer();
+      const depthBuffer = gl.createBuffer();
+      const indexBuffer = gl.createBuffer();
+      
+      // Create VAO
+      const vao = gl.createVertexArray();
+      gl.bindVertexArray(vao);
+      
+      // Setup position attribute
+      gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+      gl.enableVertexAttribArray(positionAttributeLocation);
+      gl.vertexAttribPointer(positionAttributeLocation, 3, gl.FLOAT, false, 0, 0);
+      
+      // Setup color attribute
+      gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+      gl.enableVertexAttribArray(colorAttributeLocation);
+      gl.vertexAttribPointer(colorAttributeLocation, 3, gl.FLOAT, false, 0, 0);
+      
+      // Setup depth attribute
+      gl.bindBuffer(gl.ARRAY_BUFFER, depthBuffer);
+      gl.enableVertexAttribArray(depthAttributeLocation);
+      gl.vertexAttribPointer(depthAttributeLocation, 1, gl.FLOAT, false, 0, 0);
+      
+      // Setup index attribute
+      gl.bindBuffer(gl.ARRAY_BUFFER, indexBuffer);
+      gl.enableVertexAttribArray(indexAttributeLocation);
+      gl.vertexAttribPointer(indexAttributeLocation, 1, gl.FLOAT, false, 0, 0);
+      
+      // Enable alpha blending
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      
+      // Enable line width (if supported)
+      if (gl.getExtension('OES_line_width_smooth')) {
+        gl.lineWidth(2.0);
+      }
+      
+      // Generate the fractal tree
+      function generateTree() {
+        // Reset arrays
+        treeVertices = [];
+        treeColors = [];
+        const depthValues = [];
+        const indexValues = [];
+        
+        let branchIndex = 0;
+        
+        // Start with the trunk from the bottom center
+        const startX = 0;
+        const startY = -0.8;
+        const startZ = 0;
+        const startSize = 0.5;
+        const startAngle = Math.PI / 2; // Pointing up
+        
+        // Recursively create branches
+        function branch(x, y, z, size, angle, depth, branchIndex) {
+          if (depth >= MAX_DEPTH || size < MIN_SIZE) {
+            return;
+          }
+          
+          // Calculate endpoint of this branch
+          const endX = x + Math.cos(angle) * size;
+          const endY = y + Math.sin(angle) * size;
+          const endZ = z;
+          
+          // Add branch line (from start to end)
+          treeVertices.push(x, y, z);
+          treeVertices.push(endX, endY, endZ);
+          
+          // Calculate color based on depth (green to yellow to red)
+          const hue = depth / MAX_DEPTH;
+          let r, g, b;
+          
+          if (hue < 0.5) {
+            // Green to yellow gradient
+            r = hue * 2;
+            g = 0.6 + hue * 0.4;
+            b = 0.2;
+          } else {
+            // Yellow to red gradient
+            r = 1.0;
+            g = 1.0 - (hue - 0.5) * 2;
+            b = 0.1;
+          }
+          
+          // Add colors (same color for both endpoints of branch)
+          treeColors.push(r, g, b);
+          treeColors.push(r, g, b);
+          
+          // Add depth values
+          depthValues.push(depth);
+          depthValues.push(depth);
+          
+          // Add branch indices
+          indexValues.push(branchIndex);
+          indexValues.push(branchIndex);
+          
+          // Calculate new size for child branches
+          const newSize = size * BRANCH_SHRINK;
+          
+          // Create child branches
+          for (let i = 0; i < BRANCH_COUNT; i++) {
+            // Distribute branches evenly
+            const spreadAngle = Math.PI * 0.4; // 72 degrees spread
+            const newAngle = angle + spreadAngle * (i / (BRANCH_COUNT - 1) - 0.5);
+            
+            // Generate next branch
+            branch(endX, endY, endZ, newSize, newAngle, depth + 1, branchIndex + i + 1);
+          }
+        }
+        
+        // Start the recursive branch creation
+        branch(startX, startY, startZ, startSize, startAngle, 0, 0);
+        
+        // Update buffers with new data
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(treeVertices), gl.STATIC_DRAW);
+        
+        gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(treeColors), gl.STATIC_DRAW);
+        
+        gl.bindBuffer(gl.ARRAY_BUFFER, depthBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(depthValues), gl.STATIC_DRAW);
+        
+        gl.bindBuffer(gl.ARRAY_BUFFER, indexBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(indexValues), gl.STATIC_DRAW);
+        
+        return treeVertices.length / 3; // Number of vertices
+      }
+      
+      // Generate initial tree
+      const vertexCount = generateTree();
+      
+      // Animation setup
+      let startTime = performance.now();
+      let lastFrameTime = startTime;
+      
+      // Create matrices
+      const modelViewMatrix = new Float32Array([
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1
+      ]);
+      
+      const projectionMatrix = new Float32Array([
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1
+      ]);
+      
+      // Animation loop
+      function animate() {
+        const now = performance.now();
+        const deltaTime = now - lastFrameTime;
+        const time = (now - startTime) / 1000.0; // Convert to seconds
+        lastFrameTime = now;
+        
+        // Update FPS counter
+        fpsCounter.update();
+        
+        // Clear canvas
+        gl.clearColor(0.05, 0.05, 0.1, 1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        
+        // Use our shader program
+        gl.useProgram(program);
+        gl.bindVertexArray(vao);
+        
+        // Update uniforms
+        gl.uniformMatrix4fv(modelViewMatrixLocation, false, modelViewMatrix);
+        gl.uniformMatrix4fv(projectionMatrixLocation, false, projectionMatrix);
+        gl.uniform1f(timeLocation, time);
+        gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
+        
+        // Draw the tree as lines
+        gl.drawArrays(gl.LINES, 0, vertexCount);
+        
+        // Schedule next frame
+        requestAnimationFrame(animate);
+      }
+      
+      // Start the animation
+      animate();
+    }
+    
+    // Start when page is loaded
+    window.addEventListener('load', init);
+  </script>
+</body>
+</html> 
